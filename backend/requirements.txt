@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+langchain
+langgraph
+langchain-community
+langchain-ollama
+supabase
+pydantic-settings
+python-multipart
+python-dotenv
+httpx
