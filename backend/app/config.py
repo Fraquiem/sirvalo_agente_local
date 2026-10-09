@@ -1,20 +1,35 @@
+from typing import List
+
 from pydantic_settings import BaseSettings
-from typing import List, Union
+
 
 class Settings(BaseSettings):
     PORT: int = 8000
     ENVIRONMENT: str = "development"
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
 
-    # Supabase
     SUPABASE_URL: str
     SUPABASE_ANON_KEY: str
     SUPABASE_SERVICE_ROLE_KEY: str
 
-    # Ollama
     OLLAMA_BASE_URL: str = "http://localhost:11434"
-    OLLAMA_MODEL: str = "qwen3:4b"
-    OLLAMA_EMBEDDING_MODEL: str = "nomic-embed-text"
+    OLLAMA_MODEL: str = "qwen3.5:9b"
+    OLLAMA_EMBEDDING_MODEL: str = "bge-m3"
+    EMBEDDING_DIMENSIONS: int = 1024
+    OLLAMA_TIMEOUT_SECONDS: float = 300.0
+    RETRIEVAL_LIMIT: int = 5
+    RETRIEVAL_THRESHOLD: float = 0.60
+    OLLAMA_MAX_OUTPUT_TOKENS: int = 512
+
+    THECOCKTAILDB_BASE_URL: str = "https://www.thecocktaildb.com/api/json/v1/1"
+    THECOCKTAILDB_TIMEOUT_SECONDS: float = 20.0
+    THECOCKTAILDB_MAX_ITEMS: int = 100
+    ADMIN_INGEST_KEY: str | None = None
+
+    MAX_UPLOAD_BYTES: int = 10 * 1024 * 1024
+    CHUNK_SIZE: int = 1200
+    CHUNK_OVERLAP: int = 200
+    SUPABASE_TIMEOUT_SECONDS: float = 20.0
 
     @property
     def cors_origins_list(self) -> List[str]:
@@ -25,4 +40,5 @@ class Settings(BaseSettings):
         env_file_encoding = "utf-8"
         extra = "ignore"
 
-settings = Settings(_env_file="../.env")  # Fallback to look at root directory if needed
+
+settings = Settings(_env_file="../.env")

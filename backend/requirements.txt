@@ -7,5 +7,5 @@ langchain-ollama
 supabase
 pydantic-settings
 python-multipart
-python-dotenv
 httpx
+pypdf

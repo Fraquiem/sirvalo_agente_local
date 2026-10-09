@@ -6,7 +6,7 @@ Aplicación web RAG (Retrieval-Augmented Generation) para consultas y recomendac
 
 - **Backend:** Python + FastAPI
 - **Orquestación RAG:** LangChain + LangGraph
-- **LLM Local:** Ollama (`qwen3:4b`)
+- **LLM Local:** Ollama (`qwen3.5:9b`, selección provisional)
 - **Autenticación y Persistencia:** Supabase Auth + PostgreSQL (`pgvector`)
 - **Frontend:** React + Vite
 
@@ -27,10 +27,10 @@ Aplicación web RAG (Retrieval-Augmented Generation) para consultas y recomendac
 
 1. **Python 3.10+**
 2. **Node.js 18+** y npm
-3. **Ollama** instalado localmente con el modelo descargado:
+3. **Ollama** instalado localmente con los modelos descargados:
    ```bash
-   ollama pull qwen3:4b
-   ollama pull nomic-embed-text
+   ollama pull qwen3.5:9b
+   ollama pull bge-m3
    ```
 4. Proyecto en **Supabase** habilitado con `pgvector`.
 
@@ -54,6 +54,15 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
+Si el backend corre dentro de Docker y Ollama escucha en el `localhost` del host, usa la red del host en Linux:
+
+```bash
+docker run --rm --network host --env-file .env \
+  -e OLLAMA_BASE_URL=http://localhost:11434 \
+  trabajoagentes-backend \
+  uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
 ### 3. Frontend
 
 ```bash
@@ -64,4 +73,11 @@ npm run dev
 
 ### 4. Base de Datos (Supabase)
 
-Aplica la migración SQL ubicada en `supabase/migrations/20261008000000_initial_schema.sql` en el SQL Editor de tu proyecto de Supabase.
+Aplica, en este orden, las migraciones SQL:
+
+```text
+supabase/migrations/20261008000000_initial_schema.sql
+supabase/migrations/20261008010000_phase3_documents.sql
+```
+
+La segunda migración añade los índices de idempotencia de uploads y TheCocktailDB. No expongas `SUPABASE_SERVICE_ROLE_KEY` al frontend.

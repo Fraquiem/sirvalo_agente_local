@@ -13,7 +13,9 @@
 - **Frontend:** React con Vite. La interfaz debe poder iniciarse localmente y consumir la URL local del backend.
 - **Agente:** el flujo principal se programa con LangChain y LangGraph; no se usan constructores visuales.
 - **Conocimiento:** TheCocktailDB aporta datos de cócteles; los archivos aportan conocimiento adicional. Las respuestas deben distinguir o citar sus fuentes cuando sea posible.
-- **Modelo local:** Ollama. La primera opción registrada es `qwen3:4b` (véase `toma_de_notas.md`); su latencia y calidad se medirán con el proyecto real.
+- **Modelo local:** Ollama. La selección provisional es `qwen3.5:9b`, porque la validación documentada mostró respuestas contextualizadas en 17.13 s y rechazo fuera de contexto en 12.96 s; `qwen3:4b` tardó 246.10 s con razonamiento visible. La configuración final debe desactivar razonamiento y limitar la salida.
+
+**Inventario local observado (8 de octubre de 2026):** Ollama tiene `qwen3.5:9b` (9.7B, cuantización Q4_K_M, Apache 2.0), `qwen3.5-opencode:latest`, `qwen3:4b` y `bge-m3`. `bge-m3` produce embeddings de 1024 dimensiones.
 - **Datos:** modelo mínimo, con una tabla de documentos, una tabla de fragmentos vectorizados y una tabla de conversaciones/mensajes sólo si el historial forma parte de la entrega. No se crea una jerarquía de tablas por ingrediente, utensilio o categoría sin una necesidad funcional comprobada.
 - **Seguridad:** las credenciales y secretos viven en variables de entorno. La clave pública de Supabase puede llegar al frontend; nunca se expone una `service_role` key ni otro secreto privilegiado.
 **Compatibilidad con la consigna:** `trabajo_agente.md` enumera despliegue en la nube como requisito académico, mientras este plan fija ejecución local sin servidores pagos. El alcance implementable actual es local; antes de la entrega, el equipo debe confirmar si la evaluación exige una URL pública y, sólo si se exige, acordar una excepción explícita sin cambiar silenciosamente la arquitectura.
@@ -35,19 +37,23 @@ Cada tarea se marca `[x]` sólo cuando existe una evidencia revisable: commit en
 
 **Tareas verificables**
 
-- [ ] Confirmar que el caso de uso es preguntas y recomendaciones fundamentadas sobre cócteles.
+- [x] Confirmar que el caso de uso es preguntas y recomendaciones fundamentadas sobre cócteles.
 - [ ] Confirmar responsables, disponibilidad y criterio de terminado de cada fase.
 - [ ] Crear/usar únicamente `main` y `develop`; proteger `main` de cambios no revisados.
 - [ ] Inventariar versiones de Python, Node.js, Ollama y Docker (si se usa sólo como ayuda local).
-- [ ] Instalar y comprobar Ollama; descargar el modelo acordado: `ollama pull qwen3:4b`.
-- [ ] Crear un proyecto Supabase de desarrollo y anotar su URL y clave pública fuera del repositorio.
-- [ ] Acordar formatos iniciales de archivo: PDF, TXT, Markdown y CSV; documentar explícitamente cualquier formato no soportado.
+- [x] Instalar y comprobar Ollama; descargar los modelos disponibles y validar `qwen3.5:9b`, `qwen3:4b` y `bge-m3`.
+- [x] Crear un proyecto Supabase de desarrollo y configurar su URL y clave pública en variables locales.
+- [x] Acordar formatos iniciales de archivo: PDF, TXT, Markdown y CSV; documentar explícitamente cualquier formato no soportado.
+
+**Evidencia:** `docs/model-validation.md`, `.env.example`, `docs/plan-proyecto.md` y la verificación HTTP autenticada de Supabase.
+
+**Pendiente de Fase 0:** responsables, inventario exacto de versiones, protección remota de `main` y decisión sobre el requisito académico de despliegue cloud.
 
 **Aceptación**
 
-- [ ] Una persona nueva puede leer este plan y reproducir las decisiones sin elegir otra arquitectura.
-- [ ] `ollama list` muestra el modelo elegido y la aplicación puede apuntar a una URL local de Ollama.
-- [ ] Existe un `.env.example` sin secretos y una lista de variables requerida (sin modificar código de aplicación en esta fase).
+- [x] Una persona nueva puede leer este plan y reproducir las decisiones sin elegir otra arquitectura.
+- [x] `ollama list` muestra los modelos disponibles y la aplicación puede apuntar a una URL local de Ollama.
+- [x] Existe un `.env.example` sin secretos y una lista de variables requerida.
 
 ### Fase 1 — Diseño funcional y contrato de la API
 
@@ -55,18 +61,20 @@ Cada tarea se marca `[x]` sólo cuando existe una evidencia revisable: commit en
 
 **Tareas verificables**
 
-- [ ] Definir flujos: registro/inicio de sesión, cierre de sesión, pregunta, carga de archivo, listado/eliminación de documentos y consulta de historial.
-- [ ] Definir estados de UI: cargando, respuesta fundamentada, contexto insuficiente, error de validación, error de proveedor y sesión expirada.
-- [ ] Especificar endpoints protegidos, método, entrada, salida, códigos HTTP y requisito de usuario autenticado.
-- [ ] Especificar el formato de una respuesta RAG: respuesta, fuentes/fragmentos usados y señal de suficiencia del contexto.
-- [ ] Definir límites: tamaño/tipo de archivo, longitud de pregunta, número de resultados recuperados y mensajes de error seguros.
-- [ ] Dibujar el flujo LangGraph: recibir → recuperar → evaluar suficiencia → responder o rechazar → guardar historial.
+- [x] Definir flujos: registro/inicio de sesión, cierre de sesión, pregunta, carga de archivo, listado/eliminación de documentos y consulta de historial.
+- [x] Definir estados de UI: cargando, respuesta fundamentada, contexto insuficiente, error de validación, error de proveedor y sesión expirada.
+- [x] Especificar endpoints protegidos, método, entrada, salida, códigos HTTP y requisito de usuario autenticado.
+- [x] Especificar el formato de una respuesta RAG: respuesta, fuentes/fragmentos usados y señal de suficiencia del contexto.
+- [x] Definir límites numéricos: preguntas de 1–2000 caracteres, archivos PDF/TXT/Markdown/CSV de máximo 10 MiB y recuperación de 5 fragmentos por defecto (máximo 20); documentar mensajes de error seguros.
+- [x] Dibujar el flujo LangGraph: recibir → recuperar → evaluar suficiencia → responder o rechazar → guardar historial.
+
+**Evidencia:** [`api-contract.md`](api-contract.md).
 
 **Aceptación**
 
-- [ ] El contrato permite implementar frontend y backend sin inventar nombres ni formas de respuesta.
-- [ ] Cada operación protegida tiene una regla de autorización y un caso de rechazo no autenticado.
-- [ ] Existe un caso explícito para responder “No tengo suficiente información...” sin llamar al modelo generativo.
+- [x] El contrato permite implementar frontend y backend sin inventar nombres ni formas de respuesta.
+- [x] Cada operación protegida tiene una regla de autorización y un caso de rechazo no autenticado.
+- [x] Existe un caso explícito para responder “No tengo suficiente información...” sin llamar al modelo generativo.
 
 ### Fase 2 — Supabase Auth y PostgreSQL/pgvector
 
@@ -74,26 +82,28 @@ Cada tarea se marca `[x]` sólo cuando existe una evidencia revisable: commit en
 
 **Configuración externa paso a paso**
 
-1. [ ] Crear una cuenta y un proyecto en [Supabase Dashboard](https://supabase.com/dashboard).
-2. [ ] En **Project Settings → API**, copiar la **Project URL** y la clave pública (`anon`/publishable, según la interfaz). Guardarlas únicamente en variables de entorno locales.
+1. [x] Crear una cuenta y un proyecto en [Supabase Dashboard](https://supabase.com/dashboard).
+2. [x] En **Project Settings → API**, copiar la **Project URL** y la clave pública (`anon`/publishable, según la interfaz). Guardarlas únicamente en variables de entorno locales.
 3. [ ] En **Authentication → Providers**, habilitar Email. Mantener la confirmación de correo según la política del proyecto; para una demo local, documentar si se desactiva y por qué.
 4. [ ] En **Authentication → URL Configuration**, añadir sólo las URLs locales usadas por el frontend (por ejemplo, `http://localhost:5173`) y su callback si la integración lo requiere.
 5. [ ] Abrir **SQL Editor** y habilitar `vector` con la sentencia recomendada por la documentación de [Supabase pgvector](https://supabase.com/docs/guides/database/extensions/pgvector). Verificar que la extensión queda instalada.
-6. [ ] Crear las tablas mínimas descritas en este documento, con `id`, claves foráneas, `created_at` y políticas RLS coherentes con el usuario autenticado. La migración debe ser repetible y quedar versionada como artefacto de infraestructura/documentación, no como secreto.
-7. [ ] Crear índices sólo después de conocer la dimensión del embedding; la dimensión de la columna y la del modelo deben coincidir.
+6. [x] Ejecutar las migraciones `supabase/migrations/20261008000000_initial_schema.sql` y `supabase/migrations/20261008010000_phase3_documents.sql`; las tablas, índices de idempotencia y la RPC responden por PostgREST.
+7. [x] Crear índices sólo después de conocer la dimensión del embedding; `bge-m3` produce 1024 dimensiones y la migración usa `vector(1024)`.
 8. [ ] Probar registro, inicio y cierre de sesión desde el cliente local. Verificar que un usuario no puede leer ni borrar documentos de otro usuario.
-9. [ ] No copiar la `service_role` key al frontend, al repositorio ni a tickets. Rotarla si se expone accidentalmente.
+9. [x] No copiar la `service_role` key al frontend, al repositorio ni a tickets. La conexión local fue probada sin imprimir sus valores.
+
+**Estado de verificación actual:** Auth, las cuatro tablas, la RPC `match_documents` y la ingesta real de un upload y de `Melya` respondieron correctamente en el recorrido del 9 de octubre de 2026. El backend valida JWT mediante `current_user`; la escritura de ingesta usa `service_role` sólo en backend y las lecturas de usuario usan su JWT.
+
+**No confirmado todavía:** Email/callback del proyecto, comportamiento A/B/anon para todas las tablas, extensión/índice mediante consulta de catálogo, logout desde frontend y cascadas observadas después de borrar un usuario.
 
 **Tareas verificables**
 
-- [ ] Implementar validación del JWT de Supabase en FastAPI.
-- [ ] Asociar cada documento, fragmento y conversación a `user_id` cuando el dato sea privado.
-- [ ] Definir si los datos de TheCocktailDB son globales o se replican por usuario; preferencia: corpus global de sólo lectura y archivos privados por usuario.
+- [x] Implementar validación del JWT de Supabase en FastAPI.
+- [x] Asociar cada documento, fragmento y conversación a `user_id` cuando el dato sea privado; los chunks se asocian mediante `document_id`.
+- [x] Definir que los datos de TheCocktailDB sean globales de sólo lectura y los archivos privados por usuario; la migración aplica acceso global sólo a `authenticated`.
 - [ ] Verificar RLS con dos usuarios de prueba y una sesión sin autenticar.
 
 **Aceptación**
-
-- [ ] Usuario A no puede consultar documentos privados de usuario B aunque conozca sus identificadores.
 - [ ] Un JWT inválido o ausente produce un rechazo consistente en todos los endpoints protegidos.
 - [ ] La búsqueda vectorial devuelve una fila de prueba con su fragmento y metadatos de origen.
 
@@ -103,19 +113,21 @@ Cada tarea se marca `[x]` sólo cuando existe una evidencia revisable: commit en
 
 **Tareas verificables**
 
-- [ ] Consultar la [documentación oficial de TheCocktailDB](https://www.thecocktaildb.com/api.php) y registrar límites, endpoint(s) y atribución exigida por el plan utilizado.
-- [ ] Definir un adaptador que normalice nombre, categoría, tipo de vaso, ingredientes, preparación, identificador remoto y URL de origen.
-- [ ] Definir carga de archivos con validación de extensión/MIME/tamaño y nombre seguro.
-- [ ] Extraer texto, normalizar espacios, conservar metadatos de archivo y dividir en fragmentos con solapamiento documentado.
-- [ ] Generar embeddings localmente y persistir texto, embedding, `source_type`, `source_uri`, `document_id` y posición del fragmento.
-- [ ] Hacer la ingesta idempotente: repetir la misma fuente no crea duplicados silenciosos.
-- [ ] Registrar errores por archivo o fuente sin marcar como exitoso un documento parcialmente procesado.
+- [x] Consultar la [documentación oficial de TheCocktailDB](https://www.thecocktaildb.com/api.php) y registrar límites, endpoint(s) y atribución exigida por el plan utilizado.
+- [x] Definir un adaptador que normalice nombre, categoría, tipo de vaso, ingredientes, preparación, identificador remoto y URL de origen.
+- [x] Definir carga de archivos con validación de extensión/MIME/tamaño y nombre seguro.
+- [x] Extraer texto, normalizar espacios, conservar metadatos de archivo y dividir en fragmentos con solapamiento documentado.
+- [x] Generar embeddings localmente y persistir texto, embedding, `source_type`, `source_uri`, `document_id` y posición del fragmento.
+- [x] Hacer la ingesta idempotente: repetir la misma fuente no crea duplicados silenciosos.
+- [x] Registrar errores por archivo o fuente sin marcar como exitoso un documento parcialmente procesado.
+
+**Estado de implementación (9 de octubre de 2026):** la ingesta end-to-end de un Markdown y de un cóctel global de TheCocktailDB se ejecutó con Ollama `bge-m3` y Supabase. El cóctel `Melya` quedó `ready`, con `source_type=cocktaildb`, `external_id=12776` y `source_uri` trazable.
 
 **Aceptación**
 
-- [ ] Se puede reconstruir el origen de cada fragmento hasta TheCocktailDB o hasta un archivo cargado.
-- [ ] Una búsqueda de prueba recupera al menos un cóctel conocido y un fragmento de archivo relevante.
-- [ ] Un archivo vacío, ilegible o no permitido recibe un error comprensible y no contamina la base vectorial.
+- [x] Se puede reconstruir el origen de cada fragmento hasta TheCocktailDB o hasta un archivo cargado.
+- [x] Una búsqueda de prueba recupera al menos un cóctel conocido y un fragmento de archivo relevante.
+- [x] Un archivo vacío, ilegible o no permitido recibe un error comprensible y no contamina la base vectorial.
 
 ### Fase 4 — Agente RAG con LangChain y LangGraph
 
@@ -123,20 +135,22 @@ Cada tarea se marca `[x]` sólo cuando existe una evidencia revisable: commit en
 
 **Tareas verificables**
 
-- [ ] Implementar el estado del grafo con pregunta, usuario, documentos recuperados, suficiencia, respuesta, fuentes y error.
-- [ ] Implementar recuperación con filtros de autorización y metadatos de fuente.
-- [ ] Implementar umbral o regla de suficiencia revisable; no asumir que cualquier resultado es evidencia suficiente.
-- [ ] Añadir nodo de validación de contexto y una rama explícita de rechazo/solicitud de aclaración.
-- [ ] Configurar Ollama como modelo generativo local; documentar modelo, temperatura/configuración y limitaciones observadas.
-- [ ] Crear prompt que obligue a usar sólo el contexto recuperado, declare incertidumbre y no revele secretos.
-- [ ] Guardar la interacción después de producir una respuesta válida o un rechazo, sin guardar tokens sensibles.
+- [x] Implementar el estado del grafo con pregunta, usuario, documentos recuperados, suficiencia, respuesta, fuentes y error.
+- [x] Implementar recuperación con filtros de autorización y metadatos de fuente.
+- [x] Implementar umbral o regla de suficiencia revisable; no asumir que cualquier resultado es evidencia suficiente.
+- [x] Añadir nodo de validación de contexto y una rama explícita de rechazo/solicitud de aclaración.
+- [x] Configurar Ollama como modelo generativo local; documentar modelo, temperatura/configuración y limitaciones observadas.
+- [x] Crear prompt que obligue a usar sólo el contexto recuperado, declare incertidumbre y no revele secretos.
+- [x] Guardar la interacción después de producir una respuesta válida o un rechazo, sin guardar tokens sensibles.
+
+**Estado de implementación (9 de octubre de 2026):** el recorrido real se ejecutó con un usuario temporal, un Markdown privado y un documento global de TheCocktailDB, Ollama y Supabase. La pregunta en español sobre `Melya` devolvió `context_sufficient=true`, respuesta y fuente `cocktaildb` con threshold `0.60`; una pregunta fuera del corpus mantuvo el rechazo exacto y fuentes vacías. El historial devolvió ambos mensajes (`user`, `assistant`). El usuario temporal y sus datos asociados se eliminaron después de la prueba. El valor `0.60` queda como calibración inicial y debe subir si aparecen falsos positivos.
 
 **Aceptación**
 
-- [ ] Una pregunta respaldada devuelve respuesta y fuentes pertinentes.
-- [ ] Una pregunta fuera del corpus produce rechazo explícito, sin una afirmación inventada.
-- [ ] El grafo se puede inspeccionar en código y contiene las ramas de suficiencia y rechazo solicitadas.
-- [ ] Se evidencian al menos dos controles contra alucinaciones: umbral/validación de contexto y prompt restrictivo, además de fuentes cuando aplique.
+- [x] Una pregunta respaldada devuelve respuesta y fuentes pertinentes.
+- [x] Una pregunta fuera del corpus produce rechazo explícito, sin una afirmación inventada.
+- [x] El grafo se puede inspeccionar en código y contiene las ramas de suficiencia y rechazo solicitadas.
+- [x] Se evidencian al menos dos controles contra alucinaciones: umbral/validación de contexto y prompt restrictivo, además de fuentes cuando aplique.
 
 ### Fase 5 — API FastAPI protegida
 
@@ -144,14 +158,14 @@ Cada tarea se marca `[x]` sólo cuando existe una evidencia revisable: commit en
 
 **Tareas verificables**
 
-- [ ] Organizar routers, dependencias de autenticación, servicios de ingesta, recuperación, agente y persistencia sin duplicar lógica.
-- [ ] Publicar documentación OpenAPI de los endpoints no secretos; consultar [FastAPI](https://fastapi.tiangolo.com/).
-- [ ] Implementar pregunta, carga/procesamiento, listado y eliminación autorizada de documentos, y consulta de historial.
-- [ ] Validar entradas, límites, tipos de archivo y errores de proveedores con respuestas HTTP consistentes.
-- [ ] Configurar CORS sólo para los orígenes locales necesarios.
+- [x] Organizar routers, dependencias de autenticación, servicios de ingesta, recuperación, agente y persistencia sin duplicar lógica.
+- [x] Publicar documentación OpenAPI de los endpoints no secretos; consultar [FastAPI](https://fastapi.tiangolo.com/).
+- [x] Implementar pregunta, carga/procesamiento, listado y eliminación autorizada de documentos, y consulta de historial.
+- [x] Validar entradas, límites, tipos de archivo y errores de proveedores con respuestas HTTP consistentes.
+- [x] Configurar CORS sólo para los orígenes locales necesarios.
 - [ ] Evitar registrar JWT, claves, contenido sensible o archivos completos en logs.
 
-**Aceptación**
+**Estado:** las tareas de implementación de esta fase están presentes en el backend y fueron ejercitadas parcialmente con Docker; falta observar la matriz completa de errores/OpenAPI y comprobar consumo desde frontend. La prevención de secretos en logs permanece pendiente de una revisión específica.
 
 - [ ] La API inicia localmente y el frontend puede llamar un endpoint autenticado.
 - [ ] La especificación OpenAPI coincide con las respuestas observadas, incluyendo errores.
@@ -186,7 +200,7 @@ Cada tarea se marca `[x]` sólo cuando existe una evidencia revisable: commit en
 - [ ] Ejecutar el recorrido: crear usuario → cargar archivo → procesar → preguntar → ver fuentes → consultar historial → cerrar sesión.
 - [ ] Ejecutar recorrido con datos de TheCocktailDB y comprobar atribución/origen en la respuesta o vista de fuentes.
 - [ ] Probar preguntas conocidas, ambiguas, fuera de dominio, contexto insuficiente, archivo inválido y sesión expirada.
-- [ ] Medir latencia aproximada de embeddings, recuperación y generación con `qwen3:4b`; registrar hardware y fecha.
+- [ ] Medir latencia aproximada de embeddings, recuperación y generación con `qwen3.5:9b`; registrar hardware y fecha. `qwen3:4b` queda como comparación opcional.
 - [ ] Revisar RLS, CORS, variables de entorno, límites de archivo y ausencia de secretos en Git.
 - [ ] Capturar evidencias reproducibles: pantallas, respuestas HTTP, logs sanitizados y diagrama del flujo.
 
@@ -246,11 +260,13 @@ Restricción recomendada: unicidad por `(document_id, chunk_index)` y/o checksum
 
 RLS debe garantizar que un usuario sólo lea/modifique sus propias conversaciones y documentos privados. Los datos globales de TheCocktailDB pueden ser de sólo lectura para usuarios autenticados.
 
+En el modelo actual, los documentos de TheCocktailDB usan `owner_id = NULL`, se escriben únicamente desde el backend con `service_role` y se leen como globales sólo por usuarios autenticados mediante RLS. Los uploads usan `owner_id` del JWT; `document_chunks` se vincula mediante `document_id`. Las claves foráneas aplican cascada desde documentos a chunks y desde conversaciones a mensajes; la cascada desde el usuario de Auth y el aislamiento entre dos usuarios aún requieren prueba runtime conservada.
+
 ## 5. Riesgos, señales y mitigaciones
 
 | Riesgo | Señal temprana | Mitigación / decisión de escalamiento |
 |---|---|---|
-| Ollama lento o sin memoria | latencia alta, modelo no carga | medir con `qwen3:4b`, reducir contexto/fragmentos, documentar hardware; no sustituir por API comercial sin decisión explícita |
+| Ollama lento o sin memoria | latencia alta, modelo no carga | Medir el recorrido con `qwen3.5:9b`, timeout configurado de 300 s, reducir contexto/fragmentos y documentar hardware; no sustituir por API comercial sin decisión explícita |
 | Alucinaciones | respuesta sin fuente o no respaldada | umbral, nodo de suficiencia, prompt restrictivo, rechazo y pruebas fuera de corpus |
 | Dimensión de embeddings incompatible | error al insertar/buscar vectores | fijar modelo antes de migrar, comprobar dimensión automáticamente y recrear índice sólo con migración controlada |
 | Límites o cambios de TheCocktailDB | respuestas 429, campos ausentes | respetar documentación, cachear/ingestar con trazabilidad, manejar reintentos acotados y atribución |
