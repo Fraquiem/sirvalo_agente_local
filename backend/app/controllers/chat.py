@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.agents.cocktail_agent import build_agent_graph
 from app.dependencies import AuthenticatedUser, current_user
-from app.services.vectorstore import get_conversation, list_conversations, list_messages
+from app.services.vectorstore import get_conversation, list_conversations, list_messages, list_recent_messages
 
 router = APIRouter(tags=["chat", "conversations"])
 _graph = build_agent_graph()
@@ -36,13 +36,21 @@ class ChatResponse(BaseModel):
 
 @router.post("/chat/query", response_model=ChatResponse)
 async def query_agent(request: ChatRequest, user: AuthenticatedUser = Depends(current_user)) -> ChatResponse:
+    history: list[dict] = []
     if request.conversation_id:
         try:
             conversation = await get_conversation(conversation_id=str(request.conversation_id), token=user.access_token)
+            if not conversation:
+                raise HTTPException(status_code=404, detail="Conversation not found")
+            history = await list_recent_messages(
+                conversation_id=str(request.conversation_id),
+                token=user.access_token,
+                limit=8,
+            )
+        except HTTPException:
+            raise
         except httpx.HTTPError as exc:
             raise HTTPException(status_code=503, detail="Conversation store unavailable") from exc
-        if not conversation:
-            raise HTTPException(status_code=404, detail="Conversation not found")
     try:
         result = await _graph.ainvoke(
             {
@@ -50,6 +58,7 @@ async def query_agent(request: ChatRequest, user: AuthenticatedUser = Depends(cu
                 "user_id": user.id,
                 "access_token": user.access_token,
                 "conversation_id": str(request.conversation_id) if request.conversation_id else None,
+                "conversation_history": history,
             }
         )
     except httpx.HTTPError as exc:

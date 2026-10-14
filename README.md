@@ -54,14 +54,13 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
-Si el backend corre dentro de Docker y Ollama escucha en el `localhost` del host, usa la red del host en Linux:
+Si el backend corre dentro de Docker en Linux, `docker-compose.yml` usa `network_mode: host` para que pueda alcanzar Ollama en `localhost:11434`. Inicia los servicios con:
 
 ```bash
-docker run --rm --network host --env-file .env \
-  -e OLLAMA_BASE_URL=http://localhost:11434 \
-  trabajoagentes-backend \
-  uvicorn app.main:app --host 127.0.0.1 --port 8000
+docker compose up --build
 ```
+
+En Windows o macOS, ejecuta el backend fuera de Docker o cambia `OLLAMA_BASE_URL` a `http://host.docker.internal:11434` y configura Ollama para aceptar conexiones desde Docker.
 
 ### 3. Frontend
 

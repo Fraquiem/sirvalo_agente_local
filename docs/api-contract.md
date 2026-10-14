@@ -126,6 +126,8 @@ Request:
 }
 ```
 
+Cuando se envía `conversation_id`, el backend carga un tramo reciente y acotado del historial autorizado para resolver referencias explícitas («esta receta») y seguimientos elípticos con un objeto implícito («¿Debería agitarla?»). Relee los chunks citados por la última respuesta del asistente con el JWT actual y RLS. El texto previo del modelo sólo ayuda a resolver la referencia; no se acepta como evidencia. Si no hay fuente recuperable del turno anterior, el agente no inventa contexto. Sin `conversation_id`, cada pregunta se procesa sin contexto conversacional anterior.
+
 Respuesta `200`:
 
 ```json
@@ -140,11 +142,12 @@ Respuesta `200`:
       "title": "Mojito",
       "source_type": "cocktaildb",
       "source_uri": "https://www.thecocktaildb.com/...",
+      "image_url": "https://www.thecocktaildb.com/images/media/drink/...",
       "similarity": 0.87
-    }
   ]
 }
 ```
+`image_url` es opcional y puede ser `null` (por ejemplo, en fuentes de archivos cargados). Cuando existe, contiene una URL HTTPS externa de la miniatura del cóctel; la API no almacena ni devuelve bytes de imagen. El mismo campo se conserva en `sources` de los mensajes del historial.
 
 Cuando el contexto sea insuficiente, la API responde `200` porque la solicitud fue procesada, pero debe devolver:
 

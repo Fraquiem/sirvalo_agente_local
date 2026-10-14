@@ -1,22 +1,24 @@
 # Fase 4: agente RAG
 
-## Topología
+`POST /chat/query` valida el JWT y, si se proporciona, comprueba la conversación mediante RLS. El grafo LangGraph ejecuta `retrieve -> validate -> (generate | reject) -> save`. Recuperación crea un embedding con el modelo configurado y llama al RPC autorizado `match_documents`; si una pregunta de receta nombra un cóctel que aún no está en el índice, ejecuta una búsqueda acotada en TheCocktailDB, persiste el resultado de forma idempotente y lo usa como contexto autorizado. La extracción cubre variantes como `hacer`, `hace`, `preparar`, `preparo`, `prepara`, `elaborar`, artículos `un/una/el/la`, `ingredientes de` y `qué es`. El guardado usa el JWT del usuario para insertar ambos mensajes.
 
-`POST /chat/query` valida el JWT y, si se proporciona, comprueba la conversación mediante RLS. El grafo LangGraph ejecuta `retrieve -> validate -> (generate | reject) -> save`. Recuperación crea un embedding con el modelo configurado y llama al RPC autorizado `match_documents`; el guardado usa el JWT del usuario para insertar ambos mensajes.
+## Contexto conversacional acotado
+
+Si el usuario pasa `conversation_id`, el backend carga como máximo los últimos 8 mensajes mediante el JWT y RLS. La continuidad se activa con referencias explícitas («esta receta», «el cóctel anterior») y seguimientos elípticos de técnica/servicio («¿Debería agitarla?», «¿La agito?», «¿Y cómo se sirve?», «¿Cuánto hielo le pongo?»), siempre que haya una respuesta previa con fuentes y la pregunta no nombre un cóctel distinto. El agente vuelve a leer los chunks citados por la respuesta previa y los usa como evidencia; no trata el texto previo del modelo como fuente factual. También puede añadir fragmentos de documentos propios relevantes, pero filtra otros cócteles globales para que Piña Colada no use una receta de Margarita. Sin una fuente previa recuperable, el seguimiento se rechaza de forma segura.
 
 ## Suficiencia y generación
 
-La recuperación usa 5 fragmentos por defecto (máximo 20) y umbral inicial de similitud coseno `0.60`. Es suficiente únicamente si existe al menos un resultado con similitud igual o mayor al umbral. El rechazo exacto es: `No tengo suficiente información en mi base de conocimiento para responder esa pregunta.` En esa rama no se llama a generación. El valor se calibró con una pregunta española sobre `Melya` (`similarity=0.618609`) y debe subir si aparecen falsos positivos.
+La recuperación usa 5 fragmentos por defecto (máximo 20) y threshold general `0.55`. Las preguntas de descubrimiento por ingredientes usan `INGREDIENT_RETRIEVAL_THRESHOLD=0.40`; los seguimientos explícitos usan `RETRIEVAL_FOLLOWUP_THRESHOLD=0.35` para localizar guía complementaria. Los seguimientos reusan directamente los chunks citados por el turno anterior; la suficiencia se basa en esa evidencia autenticada, no en que el texto del asistente anterior pareciera convincente. Los resultados complementarios se filtran para conservar sólo la receta activa y documentos propios relevantes. Los thresholds deben elevarse si aparecen falsos positivos.
 
-Ollama usa `qwen3.5:9b`, `think: false`, temperatura `0.1` y `num_predict=512`. El prompt incluye únicamente los fragmentos recuperados, exige responder sólo con el contexto, citar `[Fuente N]`, declarar incertidumbre y no revelar secretos.
+Ollama usa `qwen3.5:9b`, `think: false`, temperatura `0.1` y `num_predict=512`. El prompt incluye únicamente los fragmentos recuperados, exige responder sólo con el contexto, no emite marcadores `[Fuente N]` porque la interfaz renderiza las fuentes por separado, declara incertidumbre y no revela secretos.
 
 ## Fuentes y autorización
 
-Las fuentes exponen `document_id`, `chunk_id`, `title`, `source_type`, `source_uri` y `similarity`. El RPC aplica RLS para permitir sólo documentos globales o propios. Conversaciones y mensajes se consultan y escriben con el JWT del usuario; una conversación ajena se presenta como `404` sin revelar existencia.
+Las fuentes exponen `document_id`, `chunk_id`, `title`, `source_type`, `source_uri`, `image_url` opcional y `similarity`. En fuentes de TheCocktailDB, `image_url` es una URL HTTPS externa y no se almacenan binarios; en uploads permanece nulo. El RPC aplica RLS para permitir sólo documentos globales o propios. Conversaciones y mensajes se consultan y escriben con el JWT del usuario; una conversación ajena se presenta como `404` sin revelar existencia.
 
 ## Limitaciones
 
-La calidad depende de Ollama, embeddings y de la cobertura de documentos indexados. El RPC actualmente devuelve metadata del chunk, por lo que `title`/`source_uri` pueden ser nulos cuando no están presentes en esa metadata. No hay fallback de proveedor.
+La calidad depende de Ollama, embeddings, TheCocktailDB y de la cobertura de documentos indexados. Las preguntas que nombran un cóctel pueden activar una consulta dinámica acotada al proveedor y dejarlo persistido para futuras preguntas; esto no sustituye un corpus documental para técnicas generales. El corpus global de pruebas contiene `Melya`, `Negroni`, `Mojito`, `Margarita` y, tras la verificación dinámica, `Daiquiri`. No hay fallback de proveedor alternativo.
 
 ## Ejecución con Docker
 
@@ -31,7 +33,7 @@ Si FastAPI corre en Docker y Ollama escucha sólo en `localhost`, iniciar el con
 
 ```bash
 docker run --rm --network host --env-file .env \
-  -e OLLAMA_BASE_URL=http://localhost:11434 \
+  -e OLLAMA_BASE_URL=http://127.0.0.1:11434 \
   trabajoagentes-backend \
   uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```

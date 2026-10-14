@@ -92,7 +92,7 @@ Cada tarea se marca `[x]` sólo cuando existe una evidencia revisable: commit en
 8. [ ] Probar registro, inicio y cierre de sesión desde el cliente local. Verificar que un usuario no puede leer ni borrar documentos de otro usuario.
 9. [x] No copiar la `service_role` key al frontend, al repositorio ni a tickets. La conexión local fue probada sin imprimir sus valores.
 
-**Estado de verificación actual:** Auth, las cuatro tablas, la RPC `match_documents` y la ingesta real de un upload y de `Melya` respondieron correctamente en el recorrido del 9 de octubre de 2026. El backend valida JWT mediante `current_user`; la escritura de ingesta usa `service_role` sólo en backend y las lecturas de usuario usan su JWT.
+**Estado de verificación actual:** Auth, las cuatro tablas, la RPC `match_documents` y la ingesta real de un upload y de `Melya` respondieron correctamente en el recorrido del 9 de octubre de 2026. El backend valida JWT mediante `current_user`; la escritura de ingesta usa `service_role` sólo en backend y las lecturas de usuario usan su JWT. El backend expone `POST /auth/refresh` y el frontend persiste/renueva el `refresh_token` con una sola renovación concurrente; los errores transitorios no eliminan la sesión local.
 
 **No confirmado todavía:** Email/callback del proyecto, comportamiento A/B/anon para todas las tablas, extensión/índice mediante consulta de catálogo, logout desde frontend y cascadas observadas después de borrar un usuario.
 
@@ -121,7 +121,7 @@ Cada tarea se marca `[x]` sólo cuando existe una evidencia revisable: commit en
 - [x] Hacer la ingesta idempotente: repetir la misma fuente no crea duplicados silenciosos.
 - [x] Registrar errores por archivo o fuente sin marcar como exitoso un documento parcialmente procesado.
 
-**Estado de implementación (9 de octubre de 2026):** la ingesta end-to-end de un Markdown y de un cóctel global de TheCocktailDB se ejecutó con Ollama `bge-m3` y Supabase. El cóctel `Melya` quedó `ready`, con `source_type=cocktaildb`, `external_id=12776` y `source_uri` trazable.
+**Estado de implementación (10 de octubre de 2026):** la ingesta end-to-end de un Markdown y de los cócteles globales `Melya`, `Negroni`, `Mojito` y `Margarita` se ejecutó con Ollama `bge-m3` y Supabase. Además, las preguntas sobre `Daiquiri` y `Whiskey Sour` activaron la recuperación híbrida, persistieron ambos cócteles idempotentemente como `cocktaildb` y dejaron sus fuentes trazables. Las preguntas de descubrimiento de ingredientes consultan primero `filter.php?i=...` y `lookup.php?i=...` en TheCocktailDB, persisten hasta tres recetas y usan únicamente esos documentos como contexto cuando existen; el fallback vectorial se mantiene cuando no hay resultados. Se normalizan alias frecuentes como `jugo de tomate` → `tomato juice`. El catálogo puede nombrar ese resultado como Bloody Maria o Bloody Mary.
 
 **Aceptación**
 
@@ -143,7 +143,7 @@ Cada tarea se marca `[x]` sólo cuando existe una evidencia revisable: commit en
 - [x] Crear prompt que obligue a usar sólo el contexto recuperado, declare incertidumbre y no revele secretos.
 - [x] Guardar la interacción después de producir una respuesta válida o un rechazo, sin guardar tokens sensibles.
 
-**Estado de implementación (9 de octubre de 2026):** el recorrido real se ejecutó con un usuario temporal, un Markdown privado y un documento global de TheCocktailDB, Ollama y Supabase. La pregunta en español sobre `Melya` devolvió `context_sufficient=true`, respuesta y fuente `cocktaildb` con threshold `0.60`; una pregunta fuera del corpus mantuvo el rechazo exacto y fuentes vacías. El historial devolvió ambos mensajes (`user`, `assistant`). El usuario temporal y sus datos asociados se eliminaron después de la prueba. El valor `0.60` queda como calibración inicial y debe subir si aparecen falsos positivos.
+**Estado de implementación (12 de octubre de 2026):** el recorrido real se ejecutó con Piña Colada global y `docs/knowledge/guia-cocteleria.md` cargada en la biblioteca del usuario. Tras «¿Cómo hacer una Piña Colada?», los seguimientos «Debo agitar algo en esta receta?» y «¿Debería agitarla?» devolvieron que la receta indica licuar, no agitar, con fuente Piña Colada y sin mezclar Margarita. La causa era que `conversation_id` sólo se usaba para persistir historial y el grafo no recibía los mensajes ni sus fuentes. Ahora el backend carga hasta 8 mensajes autorizados por RLS; referencias explícitas y elípticas reusan los chunks citados por la última respuesta fundamentada y pueden añadir documentos propios relevantes. El texto previo del modelo sólo ayuda a resolver referencias; no se toma como evidencia. Una pregunta fuera de tema en la misma conversación siguió rechazada. Thresholds: general `0.55`, ingredientes `0.40`, contexto suplementario de seguimiento `0.35`.
 
 **Aceptación**
 

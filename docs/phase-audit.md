@@ -8,12 +8,12 @@ Auditoría estática del repositorio más evidencia registrada de recorridos run
 |---|---|---|---|
 | 0. Alineación y entorno | Parcial | Alcance, stack, ramas previstas, `.env.example`, modelos Ollama y Supabase documentados. | Falta inventario exacto de versiones, responsables, protección remota de `main` y decisión sobre despliegue cloud. |
 | 1. Contrato API | Parcial | `docs/api-contract.md` define operaciones, límites numéricos, JWT, respuestas RAG, fuentes y rechazo; FastAPI ya publica health, auth y chat en OpenAPI. | Falta validar intención, comprobar respuestas contra Supabase y completar documentos/RAG. |
-| 2. Supabase/Auth/pgvector | Parcial | Cuatro tablas y `match_documents` responden por PostgREST autenticado; `bge-m3` produce 1024 dimensiones; FastAPI ya tiene dependencia JWT contra `/auth/v1/user`. | Email Auth, pruebas con dos usuarios, RLS detallado, índice HNSW y extensión no están verificados end-to-end; falta probar el runtime del backend. |
-| 3. Ingesta | Implementado verificado | Ingesta real de Markdown y de `Melya` desde TheCocktailDB con Ollama `bge-m3`, documentos `ready`, embeddings 1024 y persistencia en Supabase; consulta RPC recuperó ambos tipos de fuente. | Falta comprobar aislamiento con dos usuarios. |
-| 4. Agente RAG | Implementado verificado con calibración inicial | La pregunta española sobre `Melya` pasó con threshold `0.60` y devolvió fuente `cocktaildb`; pregunta fuera de corpus fue rechazada; historial real persistió ambos roles. | Vigilar falsos positivos y subir el threshold si aparecen; falta medir latencia formal. |
-| 5. API FastAPI | Parcial implementado | `main.py` registra auth/chat/documents, `/health` es público y la API expone carga, listado, detalle, borrado, chat e historial. | Falta prueba con dos usuarios y frontend. |
-| 6. Frontend | Parcial scaffold | React/Vite y variables públicas previstas. | UI estática; sin Auth, chat, documentos, fuentes ni errores.
-| 7. Integración | Implementado parcialmente verificado | Se ejecutó autenticación → ingesta TheCocktailDB/archivo → embedding → recuperación → generación/rechazo → historial; los usuarios temporales se eliminaron. | Falta recorrido con frontend, dos usuarios y evidencias formales de latencia.
+| 2. Supabase/Auth/pgvector | Parcial | Cuatro tablas y `match_documents` responden por PostgREST autenticado; `bge-m3` produce 1024 dimensiones; FastAPI valida tokens contra `/auth/v1/user` y ahora expone renovación de sesión. | Email Auth, pruebas con dos usuarios, RLS detallado, índice HNSW y extensión no están verificados end-to-end; el frontend debe probar restauración y expiración con una cuenta real. |
+| 3. Ingesta | Implementado verificado | Ingesta real de Markdown y de `Melya`/`Negroni`/`Mojito`/`Margarita` desde TheCocktailDB con Ollama `bge-m3`, documentos `ready`, embeddings 1024, `image_url` HTTPS y persistencia en Supabase; la recuperación híbrida añadió `Daiquiri` y `Whiskey Sour` bajo demanda. | Falta comprobar aislamiento con dos usuarios. |
+| 4. Agente RAG | Implementado verificado | Tras Piña Colada, «Debo agitar algo en esta receta?» y «¿Debería agitarla?» respondieron licuar/no agitar con fuente Piña Colada (y guía cuando fue cargada); no se usó Margarita. Una pregunta fuera de tema siguió rechazada. | Vigilar falsos positivos y calibrar thresholds; falta medir latencia formal. |
+| 5. API FastAPI | Parcial implementado | `main.py` registra auth/chat/documents, `/health` es público y la API expone carga, listado, detalle, borrado, chat e historial; `POST /auth/refresh` renueva sesiones. | Falta prueba con dos usuarios, frontend y recorrido completo de expiración/renovación. |
+| 6. Frontend | Parcial implementado | React/Vite tiene pantalla de login/registro, chat, biblioteca, fuentes, logout, persiste/renueva `refresh_token` y evita renovaciones concurrentes. | Falta verificar login real, expiración de token, restauración tras recarga y errores con una cuenta real. |
+| 7. Integración | Implementado parcialmente verificado | Se ejecutó autenticación → ingesta TheCocktailDB/archivo → embedding → recuperación → generación/rechazo → historial; los usuarios temporales se eliminaron. | Falta recorrido con frontend, dos usuarios y evidencias formales de latencia. |
 | 8. Entrega | Parcial documental | README, plan, contrato, migración y validación de modelos. | Faltan documento técnico, diagramas, diapositivas, despliegue/evidencias finales. |
 
 ## Trabajo realizado en esta iteración
@@ -33,19 +33,25 @@ Auditoría estática del repositorio más evidencia registrada de recorridos run
   - La RPC `match_documents` recuperó el fragmento privado usando el JWT.
   - La pregunta respaldada sobre `Melya` devolvió `context_sufficient=true` y fuente `source_type=cocktaildb`.
   - La pregunta española general sobre `Melya` pasó con threshold `0.60`, similarity `0.618609`, respuesta y fuente `source_type=cocktaildb`.
+  - La pregunta `¿Cómo preparo un negroni equilibrado?` pasó con threshold `0.55`, similarity `0.578740`, respuesta fundamentada y fuente `Negroni`.
   - `/conversations` y `/conversations/{id}/messages` devolvieron el historial con roles `user` y `assistant`.
   - El usuario temporal y sus datos asociados se eliminaron después del recorrido.
+- Se reprodujo el fallo conversacional: `conversation_id` se guardaba, pero no cargaba historial en el grafo; el vectorizador devolvía Margarita para la pregunta de seguimiento de Piña Colada.
+- Se añadió carga de los últimos 8 mensajes autorizados por RLS. Referencias explícitas y elípticas de técnica/servicio reutilizan chunks citados en la última respuesta fundamentada; el prompt no considera la respuesta anterior como fuente factual.
+- Recorrido real: Piña Colada → «Debo agitar algo en esta receta?» y «¿Debería agitarla?» → respuesta basada en la receta que indica licuar, con fuente Piña Colada; en la prueba con guía cargada también citó `guia-cocteleria.md`. No citó Margarita.
+- Una pregunta sin relación («¿Cuál es la capital de Francia?») en la misma conversación mantuvo `context_sufficient=false` y `sources=[]`.
+- Prueba aislada del filtro: si recuperación vectorial devuelve Piña Colada + guía + Margarita, conserva Piña Colada/guía y excluye Margarita.
 - El primer intento dentro de Docker con `localhost` no pudo alcanzar Ollama; se repitió con `--network host`, que es la configuración necesaria cuando Ollama escucha en el host local.
 
 ## Decisión de continuación
 
-La siguiente prioridad es calibrar el umbral de recuperación con preguntas naturales en español y probar aislamiento RLS con dos usuarios. Después corresponde integrar el frontend.
+La siguiente prioridad es probar más referencias elípticas y ejecutar la matriz de aislamiento RLS con dos usuarios. Si aparecen falsos positivos, subir progresivamente el threshold general `0.55`, el de ingredientes `0.40` o el de seguimientos `0.35`.
 
 1. Cerrar Fase 0: versiones, responsables, protección remota de `main` y decisión sobre despliegue.
 2. Cerrar Fase 1: validación de intención, autorización administrativa y OpenAPI observado.
 3. Completar Fase 2: prueba HTTP de JWT y aislamiento RLS con dos usuarios.
 4. Calibrar Fase 4: recall frente a falsos positivos y latencia de `qwen3.5:9b`.
-5. Implementar Fase 6: frontend de autenticación, documentos, chat, fuentes e historial.
+5. Cerrar integración conversacional de Fase 7 y completar pruebas frontend.
 
 ## Decisión de modelo
 

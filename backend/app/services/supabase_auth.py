@@ -57,6 +57,17 @@ async def sign_in(email: str, password: str) -> dict[str, Any]:
         raise SupabaseAuthError(response.status_code, _error_message(response))
     return response.json()
 
+async def refresh_session(refresh_token: str) -> dict[str, Any]:
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        response = await client.post(
+            f"{settings.SUPABASE_URL.rstrip('/')}/auth/v1/token?grant_type=refresh_token",
+            headers=_auth_headers(),
+            json={"refresh_token": refresh_token},
+        )
+    if response.status_code >= 400:
+        raise SupabaseAuthError(response.status_code, _error_message(response))
+    return response.json()
+
 
 async def get_user(access_token: str) -> dict[str, Any]:
     async with httpx.AsyncClient(timeout=10.0) as client:

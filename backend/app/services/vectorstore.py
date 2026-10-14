@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from typing import Any
+from uuid import UUID
 
 import httpx
 
@@ -49,6 +50,17 @@ async def replace_chunks(document_id: str, chunks: list[dict[str, Any]]) -> dict
         updated = await client.patch(f"{_url('documents')}?id=eq.{document_id}", headers=_headers(service=True), json={"status": "ready", "error_message": None})
         updated.raise_for_status()
         return updated.json()[0]
+
+
+async def get_document_chunks(document_id: str) -> list[dict[str, Any]]:
+    async with httpx.AsyncClient(timeout=settings.SUPABASE_TIMEOUT_SECONDS) as client:
+        response = await client.get(
+            _url("document_chunks"),
+            headers=_headers(service=True),
+            params={"document_id": f"eq.{document_id}", "select": "id,content,metadata,chunk_index", "order": "chunk_index.asc"},
+        )
+        response.raise_for_status()
+        return response.json()
 
 
 async def mark_document_error(document_id: str, message: str) -> None:
@@ -129,6 +141,54 @@ async def list_messages(*, conversation_id: str, token: str) -> list[dict[str, A
                 "conversation_id": f"eq.{conversation_id}",
                 "select": "id,role,content,sources,created_at",
                 "order": "created_at.asc",
+            },
+        )
+        response.raise_for_status()
+        return response.json()
+
+
+async def list_recent_messages(
+    *,
+    conversation_id: str,
+    token: str,
+    limit: int = 8,
+) -> list[dict[str, Any]]:
+    """Load a bounded, owner-authorized conversation window in chronological order."""
+    async with httpx.AsyncClient(timeout=settings.SUPABASE_TIMEOUT_SECONDS) as client:
+        response = await client.get(
+            _url("messages"),
+            headers=_headers(token=token),
+            params={
+                "conversation_id": f"eq.{conversation_id}",
+                "select": "id,role,content,sources,created_at",
+                "order": "created_at.desc",
+                "limit": min(max(limit, 1), 12),
+            },
+        )
+        response.raise_for_status()
+        return list(reversed(response.json()))
+
+
+async def get_chunks_by_ids(*, chunk_ids: list[str], token: str) -> list[dict[str, Any]]:
+    """Read chunks cited in the user's own history; RLS remains authoritative."""
+    if not chunk_ids:
+        return []
+    valid_ids: list[str] = []
+    for chunk_id in chunk_ids[:6]:
+        try:
+            valid_ids.append(str(UUID(chunk_id)))
+        except (ValueError, TypeError, AttributeError):
+            continue
+    if not valid_ids:
+        return []
+    ids = ",".join(valid_ids)
+    async with httpx.AsyncClient(timeout=settings.SUPABASE_TIMEOUT_SECONDS) as client:
+        response = await client.get(
+            _url("document_chunks"),
+            headers=_headers(token=token),
+            params={
+                "id": f"in.({ids})",
+                "select": "id,document_id,content,metadata,chunk_index",
             },
         )
         response.raise_for_status()
